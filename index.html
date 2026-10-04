@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Yilan Oyunu</title>
+<style>
+:root{
+  --bg:#eef3ec;--fg:#1c2a1f;--board:#dfe8da;--grid:#d3ddcc;
+  --snake:#2f8f4e;--head:#1d6b38;--apple:#d6402f;--btn:#ffffff;--line:#b9c8b2;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#101812;--fg:#e4eee5;--board:#1a261d;--grid:#223026;
+    --snake:#4cc274;--head:#8be3a6;--apple:#ff6a55;--btn:#1f2d23;--line:#34483a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101812;--fg:#e4eee5;--board:#1a261d;--grid:#223026;
+  --snake:#4cc274;--head:#8be3a6;--apple:#ff6a55;--btn:#1f2d23;--line:#34483a;
+}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{
+  margin:0;min-height:100%;background:var(--bg);color:var(--fg);
+  font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  display:flex;flex-direction:column;align-items:center;gap:14px;padding:16px;
+}
+h1{margin:4px 0 0;font-size:1.6rem;font-weight:700;letter-spacing:.01em}
+.skor{display:flex;gap:22px;font-size:1.05rem}
+.skor b{font-size:1.25rem}
+canvas{
+  width:min(92vw,480px);height:auto;aspect-ratio:1/1;
+  border-radius:14px;border:2px solid var(--line);touch-action:none;background:var(--board);
+}
+.pad{display:grid;grid-template-columns:repeat(3,68px);grid-template-rows:repeat(2,68px);gap:8px}
+.pad button,.yeni{
+  font:inherit;color:var(--fg);background:var(--btn);border:2px solid var(--line);
+  border-radius:14px;cursor:pointer;
+}
+.pad button{font-size:1.5rem}
+.pad button:active,.yeni:active{transform:scale(.96)}
+.pad button:focus-visible,.yeni:focus-visible{outline:3px solid var(--snake);outline-offset:2px}
+.yukari{grid-column:2;grid-row:1}
+.sol{grid-column:1;grid-row:2}
+.asagi{grid-column:2;grid-row:2}
+.sag{grid-column:3;grid-row:2}
+.yeni{padding:10px 20px;font-size:1rem}
+.ipucu{margin:0;font-size:.9rem;opacity:.75;text-align:center;max-width:36ch}
+</style>
+</head>
+<body>
+<h1>Yılan</h1>
+<div class="skor"><span>Puan <b id="puan">0</b></span><span>En iyi <b id="en">0</b></span></div>
+<canvas id="c" width="480" height="480" aria-label="Yılan oyun alanı"></canvas>
+<div class="pad">
+  <button class="yukari" data-y="w" aria-label="Yukarı">▲</button>
+  <button class="sol" data-y="a" aria-label="Sola">◀</button>
+  <button class="asagi" data-y="s" aria-label="Aşağı">▼</button>
+  <button class="sag" data-y="d" aria-label="Sağa">▶</button>
+</div>
+<button class="yeni" id="yeni">Yeniden başla</button>
+<p class="ipucu">Ok tuşları ya da WASD ile yön ver. Telefonda oyun alanında kaydır ya da düğmeleri kullan.</p>
+
+<script>
+var N = 20, C = 24, W = N * C;
+var cv = document.getElementById('c');
+var ctx = cv.getContext('2d');
+var sx, sy, yon, sonYon, yx, yy, puan, bitti, hiz, timer;
+var en = 0;
+try { en = parseInt(localStorage.getItem('yilanEn'), 10) || 0; } catch (e) {}
+document.getElementById('en').textContent = en;
+
+function rastgele(n) { return Math.floor(Math.random() * n); }
+
+function yemKoy() {
+  var bos;
+  do {
+    yx = rastgele(N); yy = rastgele(N); bos = true;
+    for (var i = 0; i < sx.length; i++) {
+      if (sx[i] === yx && sy[i] === yy) bos = false;
+    }
+  } while (!bos);
+}
+
+function baslat() {
+  clearTimeout(timer);
+  sx = [10]; sy = [10];
+  yon = 'd'; sonYon = 'd';
+  puan = 0; bitti = false; hiz = 180;
+  document.getElementById('puan').textContent = 0;
+  yemKoy();
+  ciz();
+  timer = setTimeout(dongu, hiz);
+}
+
+function yonVer(d) {
+  var ters = { w: 's', s: 'w', a: 'd', d: 'a' };
+  if (d !== ters[sonYon]) yon = d;
+}
+
+function adim() {
+  var i;
+  sonYon = yon;
+  for (i = sx.length - 1; i > 0; i--) { sx[i] = sx[i - 1]; sy[i] = sy[i - 1]; }
+  if (yon === 'w') sy[0]--;
+  else if (yon === 's') sy[0]++;
+  else if (yon === 'a') sx[0]--;
+  else sx[0]++;
+
+  if (sx[0] < 0 || sx[0] >= N || sy[0] < 0 || sy[0] >= N) bitti = true;
+  for (i = 1; i < sx.length; i++) {
+    if (sx[0] === sx[i] && sy[0] === sy[i]) bitti = true;
+  }
+  if (!bitti && sx[0] === yx && sy[0] === yy) {
+    puan++;
+    sx.push(sx[sx.length - 1]); sy.push(sy[sy.length - 1]);
+    document.getElementById('puan').textContent = puan;
+    yemKoy();
+    if (hiz > 70) hiz -= 4;
+  }
+  if (bitti && puan > en) {
+    en = puan;
+    document.getElementById('en').textContent = en;
+    try { localStorage.setItem('yilanEn', String(en)); } catch (e) {}
+  }
+}
+
+function dongu() {
+  adim();
+  ciz();
+  if (!bitti) timer = setTimeout(dongu, hiz);
+}
+
+function kutu(x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+  ctx.fill();
+}
+
+function ciz() {
+  var s = getComputedStyle(document.documentElement);
+  var renk = function (n) { return s.getPropertyValue(n).trim(); };
+  var i;
+  ctx.fillStyle = renk('--board');
+  ctx.fillRect(0, 0, W, W);
+  ctx.strokeStyle = renk('--grid');
+  ctx.lineWidth = 1;
+  for (i = 1; i < N; i++) {
+    ctx.beginPath(); ctx.moveTo(i * C + .5, 0); ctx.lineTo(i * C + .5, W); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * C + .5); ctx.lineTo(W, i * C + .5); ctx.stroke();
+  }
+  ctx.fillStyle = renk('--apple');
+  ctx.beginPath();
+  ctx.arc(yx * C + C / 2, yy * C + C / 2 + 1, C * .38, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = renk('--snake');
+  for (i = 1; i < sx.length; i++) kutu(sx[i] * C + 2, sy[i] * C + 2, C - 4, C - 4, 6);
+
+  var hx = sx[0] * C, hy = sy[0] * C;
+  ctx.fillStyle = renk('--head');
+  kutu(hx + 1, hy + 1, C - 2, C - 2, 8);
+
+  var g = { d: [[.7, .3], [.7, .7]], a: [[.3, .3], [.3, .7]], w: [[.3, .3], [.7, .3]], s: [[.3, .7], [.7, .7]] }[yon];
+  ctx.fillStyle = '#ffffff';
+  for (i = 0; i < 2; i++) {
+    ctx.beginPath();
+    ctx.arc(hx + g[i][0] * C, hy + g[i][1] * C, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (bitti) {
+    ctx.fillStyle = 'rgba(0,0,0,.5)';
+    ctx.fillRect(0, 0, W, W);
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 40px "Trebuchet MS", sans-serif';
+    ctx.fillText('Oyun bitti', W / 2, W / 2 - 6);
+    ctx.font = '20px "Trebuchet MS", sans-serif';
+    ctx.fillText('Puan: ' + puan, W / 2, W / 2 + 26);
+    ctx.fillText('Boşluk tuşu ya da dokun: tekrar oyna', W / 2, W / 2 + 56);
+  }
+}
+
+document.addEventListener('keydown', function (e) {
+  var k = e.key.toLowerCase();
+  var harita = { arrowup: 'w', arrowdown: 's', arrowleft: 'a', arrowright: 'd', w: 'w', s: 's', a: 'a', d: 'd' };
+  if (harita[k]) { e.preventDefault(); yonVer(harita[k]); }
+  else if ((k === ' ' || k === 'enter' || k === 'r') && bitti) { e.preventDefault(); baslat(); }
+});
+
+var dugmeler = document.querySelectorAll('.pad button');
+for (var b = 0; b < dugmeler.length; b++) {
+  dugmeler[b].addEventListener('click', function () { yonVer(this.getAttribute('data-y')); });
+}
+document.getElementById('yeni').addEventListener('click', baslat);
+
+var tx = 0, ty = 0;
+cv.addEventListener('touchstart', function (e) {
+  tx = e.touches[0].clientX; ty = e.touches[0].clientY;
+  if (bitti) baslat();
+}, { passive: true });
+cv.addEventListener('touchend', function (e) {
+  var dx = e.changedTouches[0].clientX - tx;
+  var dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
+  if (Math.abs(dx) > Math.abs(dy)) yonVer(dx > 0 ? 'd' : 'a');
+  else yonVer(dy > 0 ? 's' : 'w');
+}, { passive: true });
+
+baslat();
+</script>
+</body>
+</html>
